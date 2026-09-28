@@ -1,1 +1,5 @@
 .venv
+# Build output
+*.class
+__pycache__/
+*.pyc
