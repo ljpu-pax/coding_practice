@@ -16,15 +16,17 @@ import java.util.*;
  * Why not greedy: [(int, optional), (int, required)] with call [int]. Greedy gives the
  * int to the optional param, then the required int has nothing left -> wrong "false".
  *
- * DP per function: reach[j] = "after the params seen so far, we can have consumed
- * exactly the first j args".
- *   required T: next[j+1] = reach[j] && args[j] == T
- *   optional T: next[j]   = reach[j]                      (skip it)
- *               next[j+1] |= reach[j] && args[j] == T     (use it)
- *   variadic T: true if some reach[j] and args[j..n-1] are all T
- *   no variadic: true if reach[n]
- * O(m * n) per function (m params, n args), O(n) space.
- * Limits: total params 4000, n 2000 -> at most ~8 * 10^6 steps overall.
+ * Main solution: recursion + memo. match(i, j) = can params[i..] accept args[j..]?
+ *   i == m:      true iff j == n (all args used up)
+ *   required T:  args[j] == T && match(i+1, j+1)
+ *   optional T:  match(i+1, j)                        (skip it)
+ *                || (args[j] == T && match(i+1, j+1))  (use it)
+ *   variadic T:  args[j..n-1] are all T (zero args is fine; it is always last)
+ * Without memo each optional doubles the paths -> O(2^k). match only depends on (i, j),
+ * so cache it: O(m * n) time and space per function (m params, n args).
+ * Limits: total params 4000, n 2000 -> at most ~8 * 10^6 states overall.
+ *
+ * matchesDp below is the same recurrence written as a loop (O(n) space, no recursion).
  */
 public class SignatureMatch {
 
@@ -42,7 +44,38 @@ public class SignatureMatch {
         return false;
     }
 
+    // ---------------- Main: recursion + memo ----------------
     static boolean matches(List<Param> params, List<String> args) {
+        // memo[i][j]: 0 = not computed, 1 = true, 2 = false
+        byte[][] memo = new byte[params.size() + 1][args.size() + 1];
+        return match(params, args, 0, 0, memo);
+    }
+
+    private static boolean match(List<Param> params, List<String> args, int i, int j, byte[][] memo) {
+        if (i == params.size()) return j == args.size();   // params used up: args must be too
+        if (memo[i][j] != 0) return memo[i][j] == 1;
+
+        Param p = params.get(i);
+        boolean typeOk = j < args.size() && args.get(j).equals(p.type);
+        boolean res;
+        if (p.kind.equals("required")) {
+            res = typeOk && match(params, args, i + 1, j + 1, memo);
+        } else if (p.kind.equals("optional")) {
+            res = match(params, args, i + 1, j, memo)                       // skip it
+               || (typeOk && match(params, args, i + 1, j + 1, memo));      // use it
+        } else { // variadic, always last: every remaining arg must be p.type
+            res = true;
+            for (int k = j; k < args.size(); k++) {
+                if (!args.get(k).equals(p.type)) { res = false; break; }
+            }
+        }
+        memo[i][j] = (byte) (res ? 1 : 2);
+        return res;
+    }
+
+    // ---------------- Alternative: same recurrence as a loop ----------------
+    // reach[j] = "after the params seen so far, exactly the first j args can be used up".
+    static boolean matchesDp(List<Param> params, List<String> args) {
         int n = args.size();
         boolean[] reach = new boolean[n + 1];
         reach[0] = true;
@@ -101,5 +134,14 @@ public class SignatureMatch {
         System.out.println(canAccept(List.of(), List.of()));                           // false
         System.out.println(canAccept(List.of(List.of()), List.of()));                  // true
         System.out.println(canAccept(List.of(List.of(p("Int", "required"))), List.of("int"))); // false
+
+        // Both versions must agree
+        boolean same = true;
+        for (List<List<Param>> fs : List.of(fs1, fs2, fs3, fs4))
+            for (List<Param> f : fs)
+                for (List<String> call : List.of(List.<String>of(), List.of("int"), List.of("str"),
+                        List.of("int", "int"), List.of("int", "str", "str"), List.of("str", "int", "int")))
+                    same &= matches(f, call) == matchesDp(f, call);
+        System.out.println("recursion == loop: " + same);                    // true
     }
 }
