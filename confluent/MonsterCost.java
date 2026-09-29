@@ -23,10 +23,31 @@ public class MonsterCost {
 
     static final int[][] DIRS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
 
-    // ---------------- Part 1: 0-1 BFS ----------------
+    // ---------------- Part 1: 0-1 BFS (cost only) ----------------
     public static int minCost(String[] grid) {
-        Result r = minCostPath(grid);
-        return r == null ? -1 : r.cost;
+        int R = grid.length, C = grid[0].length();
+        int[] s = find(grid, 'S');
+        int[][] dist = new int[R][C];
+        for (int[] row : dist) Arrays.fill(row, Integer.MAX_VALUE);
+        Deque<int[]> dq = new ArrayDeque<>();
+        dist[s[0]][s[1]] = 0;
+        dq.add(s);
+        while (!dq.isEmpty()) {
+            int[] cur = dq.pollFirst();
+            int r0 = cur[0], c0 = cur[1];
+            if (grid[r0].charAt(c0) == 'E') return dist[r0][c0];
+            for (int[] d : DIRS) {
+                int r = r0 + d[0], c = c0 + d[1];
+                if (r < 0 || c < 0 || r >= R || c >= C || grid[r].charAt(c) == '#') continue;
+                int w = grid[r].charAt(c) == 'M' ? 1 : 0;
+                if (dist[r0][c0] + w < dist[r][c]) {
+                    dist[r][c] = dist[r0][c0] + w;
+                    if (w == 0) dq.addFirst(new int[]{r, c});  // free step: same cost level
+                    else dq.addLast(new int[]{r, c});          // monster: next cost level
+                }
+            }
+        }
+        return -1;
     }
 
     static class Result {
@@ -131,6 +152,7 @@ public class MonsterCost {
             "..M.E"
         };
         // Top row route S . M . . then down: 1 monster. Left column: M + M = 2.
+        System.out.println(minCost(g)); // 1
         Result r = minCostPath(g);
         System.out.println("cost=" + r.cost + " path=" + fmt(r.path)); // cost=1
 
