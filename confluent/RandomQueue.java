@@ -22,6 +22,38 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class RandomQueue<T> {
 
+    // ---------------- Part 1 + 2: basic version, single thread, no locks ----------------
+    static class Basic<T> {
+        private final List<T> items = new ArrayList<>();
+        private final Random rnd = new Random();
+
+        void enqueue(T x) { items.add(x); }
+
+        /** Remove and return a uniformly random element, or null if empty. O(1). */
+        T dequeue() {
+            if (items.isEmpty()) return null;
+            int i = rnd.nextInt(items.size());
+            int last = items.size() - 1;
+            T res = items.get(i);
+            items.set(i, items.get(last));   // move the last element into the hole
+            items.remove(last);              // removing the last one is O(1)
+            return res;
+        }
+
+        int size() { return items.size(); }
+
+        /** Same elements with the same counts; order doesn't matter. O(n). */
+        boolean sameElements(Basic<T> other) {
+            if (items.size() != other.items.size()) return false;
+            Map<T, Integer> cnt = new HashMap<>();
+            for (T x : items) cnt.merge(x, 1, Integer::sum);        // count mine
+            for (T x : other.items) cnt.merge(x, -1, Integer::sum); // subtract theirs
+            for (int c : cnt.values()) if (c != 0) return false;
+            return true;
+        }
+    }
+
+    // ---------------- Part 3: thread-safe version ----------------
     private final List<T> items = new ArrayList<>();
     private final Random rnd;
     private final ReentrantLock lock = new ReentrantLock();
@@ -112,6 +144,32 @@ public class RandomQueue<T> {
     }
 
     public static void main(String[] args) throws InterruptedException {
+        // Part 1 + 2 with the basic version
+        Basic<Integer> bq = new Basic<>();
+        for (int i = 1; i <= 5; i++) bq.enqueue(i);
+        List<Integer> out = new ArrayList<>();
+        Integer y;
+        while ((y = bq.dequeue()) != null) out.add(y);
+        List<Integer> sorted = new ArrayList<>(out);
+        Collections.sort(sorted);
+        System.out.println("basic dequeued: " + out + " all 1..5 once: " + sorted.equals(List.of(1, 2, 3, 4, 5))); // true
+        Basic<String> ba = new Basic<>(), bb = new Basic<>();
+        for (String s : new String[]{"a", "b", "a"}) ba.enqueue(s);
+        for (String s : new String[]{"a", "a", "b"}) bb.enqueue(s);
+        System.out.println("basic same: " + ba.sameElements(bb));   // true
+        bb.dequeue(); bb.enqueue("c");
+        System.out.println("basic same: " + ba.sameElements(bb));   // false
+
+        // Uniformity check: each of 4 items should come out first about 25% of the time
+        int[] firstCount = new int[4];
+        for (int t = 0; t < 40000; t++) {
+            Basic<Integer> u = new Basic<>();
+            for (int i = 0; i < 4; i++) u.enqueue(i);
+            firstCount[u.dequeue()]++;
+        }
+        System.out.println("first-out counts (~10000 each): " + Arrays.toString(firstCount));
+
+        // Part 3 with the thread-safe version
         RandomQueue<Integer> q = new RandomQueue<>(new Random(42));
         for (int i = 1; i <= 5; i++) q.enqueue(i);
         StringBuilder sb = new StringBuilder();

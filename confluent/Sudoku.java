@@ -1,3 +1,5 @@
+import java.util.*;
+
 /**
  * Confluent phone screen: "利口数独两题"
  *   LC 36 Valid Sudoku  - is a partially filled board valid?
@@ -20,6 +22,21 @@ public class Sudoku {
                 int b = (r / 3) * 3 + c / 3;
                 if ((rows[r] & bit) != 0 || (cols[c] & bit) != 0 || (boxes[b] & bit) != 0) return false;
                 rows[r] |= bit; cols[c] |= bit; boxes[b] |= bit;
+            }
+        }
+        return true;
+    }
+
+    // LC 36, one Set of encoded strings. Where the "(d)" sits tells row / col / box apart:
+    //   "(5)4" = row 4 has 5, "7(5)" = col 7 has 5, "1(5)2" = box (1,2) has 5.
+    // No box index math; a bit slower since it builds 3 strings per filled cell.
+    public static boolean isValidSudokuOneSet(char[][] board) {
+        Set<String> seen = new HashSet<>();
+        for (int i = 0; i < 9; i++) {
+            for (int j = 0; j < 9; j++) {
+                if (board[i][j] == '.') continue;
+                String b = "(" + board[i][j] + ")";
+                if (!seen.add(b + i) || !seen.add(j + b) || !seen.add(i / 3 + b + j / 3)) return false;
             }
         }
         return true;
@@ -74,12 +91,22 @@ public class Sudoku {
         };
         char[][] board = new char[9][];
         for (int i = 0; i < 9; i++) board[i] = rowsStr[i].toCharArray();
-        System.out.println("valid: " + isValidSudoku(board)); // true
+        System.out.println("valid: " + isValidSudoku(board) + " / oneSet: " + isValidSudokuOneSet(board)); // true
         solveSudoku(board);
         for (char[] row : board) System.out.println(new String(row));
-        System.out.println("solved still valid: " + isValidSudoku(board));
+        System.out.println("solved still valid: " + isValidSudoku(board) + " / oneSet: " + isValidSudokuOneSet(board));
 
-        board[0][1] = board[0][0]; // duplicate in row
-        System.out.println("valid after corruption: " + isValidSudoku(board)); // false
+        // One duplicate of each kind; both versions must say false
+        char[][][] bad = new char[3][][];
+        for (int k = 0; k < 3; k++) {
+            bad[k] = new char[9][];
+            for (int i = 0; i < 9; i++) bad[k][i] = rowsStr[i].toCharArray();
+        }
+        bad[0][0][2] = '5';  // row 0 already has 5 at (0,0)
+        bad[1][2][0] = '5';  // col 0 already has 5 at (0,0)
+        bad[2][2][2] = '3';  // box 0 already has 3 at (0,1), different row and col
+        String[] kind = {"row", "col", "box"};
+        for (int k = 0; k < 3; k++)
+            System.out.println("dup " + kind[k] + ": " + isValidSudoku(bad[k]) + " / oneSet: " + isValidSudokuOneSet(bad[k])); // false
     }
 }
